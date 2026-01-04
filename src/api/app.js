@@ -1,13 +1,31 @@
 import express from "express";
 import { getMergedSwagger } from "../service/fetcher.js";
 
+import path from "path";
+import { fileURLToPath } from "url";
+import { config } from "../config.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const app = express();
+
+app.use(express.static(path.join(__dirname, "../../public")));
 
 // 简单的健康检查
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date() });
 });
+// 获取当前配置接口 (给前端用)
+app.get("/api/config", (req, res) => {
+  res.json({
+    targetUrl: config.targetUrl,
+    apiPrefix: config.apiPrefix,
+    debugLimit: config.debugLimit,
+    timeout: config.timeout,
+  });
+});
 
+// 合并后的 API 文档接口
 // 合并后的 API 文档接口
 // 合并后的 API 文档接口
 app.get("/api-docs/merged", async (req, res) => {
