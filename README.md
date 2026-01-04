@@ -59,6 +59,26 @@ npm start
 
 ### 方案 B：普通服务器部署 (Docker/PM2)
 
+#### 使用 PM2 管理 (推荐)
+
+项目已内置 PM2 配置文件 `ecosystem.config.cjs`。
+
+```bash
+# 1. 安装 PM2 (如果未安装)
+npm install -g pm2
+
+# 2. 启动服务
+pm2 start ecosystem.config.cjs
+
+# 3. 查看状态
+pm2 status
+
+# 4. 查看日志
+pm2 logs swagger-merge-proxy
+```
+
+#### 直接启动
+
 ```bash
 # 1. 安装依赖
 npm install
