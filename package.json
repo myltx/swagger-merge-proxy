@@ -1,5 +1,5 @@
 {
-  "name": "swagger-merge-service",
+  "name": "swagger-merge-proxy",
   "version": "1.0.0",
   "description": "A Node.js service to merge Springfox Swagger v2 docs for Apifox import",
   "main": "src/index.js",

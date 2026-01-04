@@ -1,4 +1,4 @@
-# Swagger Merge Service
+# swagger-merge-proxy
 
 这是一个独立的 Node.js 服务，用于聚合 Springfox Swagger (v2) 的多模块文档，生成一个合并后的标准 Swagger 2.0 JSON，方便 Apifox 等工具进行统一导入。
 
