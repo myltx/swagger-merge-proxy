@@ -1,0 +1,237 @@
+import axios from "axios";
+import _ from "lodash";
+import { config as globalConfig } from "../config.js";
+
+// 多目标缓存：Map<string, { data: object, timestamp: number }>
+// Key: fullTargetUrl
+const cacheMap = new Map();
+
+/**
+ * 辅助：计算完整的 Target URL
+ */
+function getFullUrl(targetUrl, apiPrefix) {
+  const url = targetUrl.replace(/\/$/, "");
+  const prefix = apiPrefix ? apiPrefix.replace(/\/$/, "") : "";
+  return prefix.startsWith("/") ? `${url}${prefix}` : `${url}/${prefix}`;
+}
+
+/**
+ * 获取所有的 Swagger Resources (Groups)
+ */
+async function fetchSwaggerResources(fullTargetUrl, timeout) {
+  try {
+    const url = `${fullTargetUrl}/swagger-resources`;
+    console.log(`Fetching resources from: ${url}`);
+    const response = await axios.get(url, { timeout });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching swagger-resources:", error.message);
+    throw new Error(`Failed to fetch swagger resources from ${fullTargetUrl}`);
+  }
+}
+
+/**
+ * 获取单个 Group 的 Swagger 文档
+ */
+async function fetchGroupDocs(fullTargetUrl, groupName, timeout) {
+  try {
+    // 对中文 group 进行 URL 编码
+    const encodedGroup = encodeURIComponent(groupName);
+    const url = `${fullTargetUrl}/v2/api-docs?group=${encodedGroup}`;
+    console.log(`Fetching docs for group: ${groupName} (${url})`);
+
+    const response = await axios.get(url, { timeout });
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching docs for group ${groupName}:`, error.message);
+    // 如果某个 group 失败，可以返回 null 或空对象，避免阻断整体流程
+    return null;
+  }
+}
+
+/**
+ * 合并多个 Swagger JSON
+ * @param {Array} docsList - Array of { groupName, doc } objects
+ */
+function mergeSwaggerDocs(docsList) {
+  if (!docsList || docsList.length === 0) {
+    return null;
+  }
+
+  //Find the first valid doc to use as base
+  const firstValidEntry = docsList.find((x) => x && x.doc);
+  if (!firstValidEntry) return null;
+  const baseDoc = firstValidEntry.doc;
+
+  // 初始化基础结构，使用第一个文档作为基底
+  const mergedDocs = {
+    swagger: "2.0",
+    info: {
+      title: "Merged API Documentation",
+      description:
+        "Aggregated Swagger documentation from multiple services/groups.",
+      version: "1.0.0",
+    },
+    host: baseDoc.host,
+    basePath: baseDoc.basePath || "/",
+    tags: [],
+    schemes: baseDoc.schemes || ["http", "https"],
+    paths: {},
+    definitions: {},
+  };
+
+  docsList.forEach(({ groupName, doc }) => {
+    if (!doc) return;
+
+    // 1. 合并 Definitions
+    if (doc.definitions) {
+      // 策略：如果重名，目前简单的覆盖。更复杂的做法是重命名防止冲突。
+      Object.assign(mergedDocs.definitions, doc.definitions);
+    }
+
+    // 2. 合并 Paths，并注入 groupName tag
+    if (doc.paths) {
+      // 遍历每个 path
+      for (const [pathKey, pathItem] of Object.entries(doc.paths)) {
+        // 深度克隆 pathItem
+        const newPathItem = _.cloneDeep(pathItem);
+
+        const methods = [
+          "get",
+          "post",
+          "put",
+          "delete",
+          "patch",
+          "options",
+          "head",
+        ];
+
+        methods.forEach((method) => {
+          if (newPathItem[method]) {
+            const operation = newPathItem[method];
+
+            if (operation.tags && operation.tags.length > 0) {
+              // 将原有的 tags 均转换为 "GroupName/TagName"
+              operation.tags = operation.tags.map((tag) => {
+                const newTagName = `${groupName}/${tag}`;
+                // 将新的 tag 添加到全局 tags 定义中
+                if (!mergedDocs.tags.find((t) => t.name === newTagName)) {
+                  mergedDocs.tags.push({
+                    name: newTagName,
+                    description: `Group: ${groupName}, Tag: ${tag}`,
+                  });
+                }
+                return newTagName;
+              });
+            } else {
+              // 如果接口没有 tag，给它一个默认的 Group tag
+              const defaultTag = groupName;
+              operation.tags = [defaultTag];
+              if (!mergedDocs.tags.find((t) => t.name === defaultTag)) {
+                mergedDocs.tags.push({
+                  name: defaultTag,
+                  description: `API Group: ${defaultTag}`,
+                });
+              }
+            }
+          }
+        });
+
+        mergedDocs.paths[pathKey] = newPathItem;
+      }
+    }
+
+    // 3. 合并 Tags
+    if (doc.tags) {
+      const existingTagNames = new Set(mergedDocs.tags.map((t) => t.name));
+      doc.tags.forEach((tag) => {
+        if (!existingTagNames.has(tag.name)) {
+          mergedDocs.tags.push(tag);
+          existingTagNames.add(tag.name);
+        }
+      });
+    }
+  });
+
+  return mergedDocs;
+}
+
+/**
+ * 主入口：获取并合并文档
+ * @param {Object} options - { targetUrl, apiPrefix, timeout, debugLimit, cacheTTL }
+ */
+export async function getMergedSwagger(options) {
+  // 1. 确定最终参数：优先 query 参数，其次全局配置
+  const targetUrl = options.targetUrl || globalConfig.targetUrl;
+  const apiPrefix = options.apiPrefix ?? globalConfig.apiPrefix; // apiPrefix 可能为空字符串，用 ?? 判断
+  const timeout = options.timeout
+    ? parseInt(options.timeout)
+    : globalConfig.timeout;
+  const debugLimit = options.debugLimit
+    ? parseInt(options.debugLimit)
+    : globalConfig.debugLimit;
+  const cacheTTL = options.cacheTTL
+    ? parseInt(options.cacheTTL)
+    : globalConfig.cacheTTL;
+
+  if (!targetUrl) {
+    throw new Error("Missing required parameter: targetUrl");
+  }
+
+  const fullTargetUrl = getFullUrl(targetUrl, apiPrefix);
+  const cacheKey = fullTargetUrl; // 缓存 Key 只跟 URL 有关即可，DebugLimit 变化理应刷新，但这里简化处理
+
+  // 2. 检查缓存
+  const now = Date.now();
+  const cached = cacheMap.get(cacheKey);
+
+  if (cached && now - cached.timestamp < cacheTTL) {
+    console.log(`[Cache HIT] ${fullTargetUrl}`);
+    return cached.data;
+  }
+  console.log(`[Cache MISS] ${fullTargetUrl}`);
+
+  // 3. 执行拉取逻辑
+  // a) 获取资源列表
+  let resources = await fetchSwaggerResources(fullTargetUrl, timeout);
+
+  if (!Array.isArray(resources)) {
+    throw new Error("Invalid swagger-resources response. Expected an array.");
+  }
+
+  // Debug Limit
+  if (debugLimit > 0) {
+    console.warn(
+      `[DEBUG] Limiting fetch to first ${debugLimit} groups for ${fullTargetUrl}`
+    );
+    resources = resources.slice(0, debugLimit);
+  }
+
+  // b) 并行获取 Group 文档
+  const fetchPromises = resources.map(async (resource) => {
+    const doc = await fetchGroupDocs(fullTargetUrl, resource.name, timeout);
+    return { groupName: resource.name, doc };
+  });
+  const docsResults = await Promise.all(fetchPromises);
+
+  // c) 过滤
+  const validDocs = docsResults.filter((item) => item.doc !== null);
+
+  // d) 合并
+  const merged = mergeSwaggerDocs(validDocs);
+
+  // 4. 更新缓存
+  if (merged) {
+    cacheMap.set(cacheKey, {
+      data: merged,
+      timestamp: now,
+    });
+
+    // 简单的内存防爆：如果 Map 太大，清空一下（极端情况）
+    if (cacheMap.size > 100) {
+      cacheMap.clear();
+    }
+  }
+
+  return merged;
+}
