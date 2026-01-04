@@ -37,6 +37,35 @@ npm run dev
 npm start
 ```
 
+## 部署方式
+
+### 方案 A：一键部署到 Vercel (Serverless)
+
+本项目已针对 Vercel Serverless 进行适配，无需通过 `npm start` 监听端口。
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmyltx%2Fswagger-merge-proxy)
+
+**配置步骤：**
+
+1. 点击上方按钮，Fork 本仓库到您的 GitHub。
+2. 在 Vercel 导入项目时，设置环境变量：
+   - `TARGET_URL`: 您的 Java 服务地址 (例如 `http://api.example.com`)
+   - `API_PREFIX`: API 前缀 (可选)
+3. 部署完成！
+
+### 方案 B：普通服务器部署 (Docker/PM2)
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 设置环境变量 (或创建 .env)
+export TARGET_URL=http://localhost:8080
+
+# 3. 启动
+npm start
+```
+
 ### 4. 使用 Apifox 导入
 
 #### 方式 A：可视化界面 (推荐)
