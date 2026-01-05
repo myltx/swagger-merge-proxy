@@ -61,14 +61,51 @@ npm start
 
 #### 使用 PM2 管理 (推荐)
 
-项目已内置 PM2 配置文件 `ecosystem.config.cjs`。
+项目已内置 PM2 配置文件 `ecosystem.config.cjs` 和便捷管理脚本 `service.sh`。
+
+#### 使用 NPM 命令管理 (推荐)
+
+您也可以直接使用 `npm` 命令来管理 PM2 服务，无需记忆 PM2 指令。
 
 ```bash
-# 1. 安装 PM2 (如果未安装)
-npm install -g pm2
+# 启动服务
+npm run serve
 
+# 重启
+npm run serve:restart
+
+# 停止
+npm run serve:stop
+
+# 查看日志
+npm run serve:logs
+```
+
+#### 使用便捷脚本 (可选)
+
+```bash
+# 添加执行权限 (首次)
+chmod +x service.sh
+
+# 启动
+./service.sh start
+
+# 重启
+./service.sh restart
+
+# 停止
+./service.sh stop
+
+# 查看日志
+./service.sh logs
+```
+
+**方式二：使用 PM2 原生命令**
+
+```bash
 # 2. 启动服务
 pm2 start ecosystem.config.cjs
+
 
 # 3. 查看状态
 pm2 status
