@@ -21,6 +21,9 @@ if ! command -v pm2 &> /dev/null; then
 fi
 
 
+# 强制使用当前目录下的 .pm2，避开系统级权限污染
+export PM2_HOME="$(pwd)/.pm2"
+
 case "$1" in
   start)
     echo "🚀 正在启动服务..."

@@ -10,10 +10,10 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "serve": "pm2 start ecosystem.config.cjs",
-    "serve:stop": "pm2 stop swagger-merge-proxy",
-    "serve:restart": "pm2 restart swagger-merge-proxy",
-    "serve:logs": "pm2 logs swagger-merge-proxy"
+    "serve": "PM2_HOME=\"$(pwd)/.pm2\" pm2 start ecosystem.config.cjs",
+    "serve:stop": "PM2_HOME=\"$(pwd)/.pm2\" pm2 stop swagger-merge-proxy",
+    "serve:restart": "PM2_HOME=\"$(pwd)/.pm2\" pm2 restart swagger-merge-proxy",
+    "serve:logs": "PM2_HOME=\"$(pwd)/.pm2\" pm2 logs swagger-merge-proxy"
   },
   "dependencies": {
     "axios": "^1.6.0",
