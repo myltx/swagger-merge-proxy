@@ -9,6 +9,13 @@
 - **合并输出**: 将所有 group 的 paths, definitions, tags 合并为一个 JSON。
 - **缓存机制**: 默认 5 分钟缓存，避免频繁请求后端 Java 服务。
 - **独立运行**: 不侵入原有 Java 项目，作为一个中间层代理运行。
+- **并发优化**: 内置 Request Coalescing (请求合并) 机制，防止高并发请求击穿服务器。
+
+## 未来规划 / 优化方向
+
+- [ ] **OpenAPI 3.0 支持**: 引入 `swagger2openapi` 转换库，支持将旧版 Swagger 2.0 自动转换为最新的 OpenAPI 3.0 标准。
+- [ ] **多服务聚合**: 支持同时聚合多个微服务地址（Multiple Target URLs）到一个文档中。
+- [ ] **鉴权转发**: 支持转发 Header 中的鉴权 Token 到目标服务。
 
 ## 系统要求
 
