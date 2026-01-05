@@ -10,10 +10,16 @@ CONFIG_FILE="ecosystem.config.cjs"
 
 # 检查 PM2 是否安装
 if ! command -v pm2 &> /dev/null; then
-    echo "❌ 错误: 未检测到 PM2。"
-    echo "👉 请先安装 PM2: npm install -g pm2"
-    exit 1
+    # 尝试使用本地 npm 安装的 pm2
+    if [ -f "./node_modules/.bin/pm2" ]; then
+        PATH="$PATH:$(pwd)/node_modules/.bin"
+    else
+        echo "❌ 错误: 未检测到 PM2。"
+        echo "👉 请先安装: npm install -g pm2"
+        exit 1
+    fi
 fi
+
 
 case "$1" in
   start)

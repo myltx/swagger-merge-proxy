@@ -63,6 +63,12 @@ npm start
 
 项目已内置 PM2 配置文件 `ecosystem.config.cjs` 和便捷管理脚本 `service.sh`。
 
+**前置要求**：请确保服务器已全局安装 PM2。
+
+```bash
+npm install -g pm2
+```
+
 #### 使用 NPM 命令管理 (推荐)
 
 您也可以直接使用 `npm` 命令来管理 PM2 服务，无需记忆 PM2 指令。
