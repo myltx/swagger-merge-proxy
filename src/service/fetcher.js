@@ -6,6 +6,11 @@ import { config as globalConfig } from "../config.js";
 // Key: fullTargetUrl
 const cacheMap = new Map();
 
+// 请求合并锁：Map<string, Promise<object>>
+// Key: fullTargetUrl
+// 用于防止并发请求时重复执行 fetch/merge 逻辑 (Request Coalescing)
+const pendingRequests = new Map();
+
 /**
  * 辅助：计算完整的 Target URL
  */
@@ -179,7 +184,14 @@ export async function getMergedSwagger(options) {
   }
 
   const fullTargetUrl = getFullUrl(targetUrl, apiPrefix);
-  const cacheKey = fullTargetUrl; // 缓存 Key 只跟 URL 有关即可，DebugLimit 变化理应刷新，但这里简化处理
+  const cacheKey = fullTargetUrl; // 缓存 Key 只跟 URL 有关即可
+
+  // 1. [Optimization] 检查是否有正在进行的相同请求 (Request Coalescing)
+  // 如果有，直接返回那个正在跑的 Promise，避免重复计算造成拥堵
+  if (pendingRequests.has(cacheKey)) {
+    console.log(`[Coalescing] Reusing pending request for ${fullTargetUrl}`);
+    return pendingRequests.get(cacheKey);
+  }
 
   // 2. 检查缓存
   const now = Date.now();
@@ -191,47 +203,61 @@ export async function getMergedSwagger(options) {
   }
   console.log(`[Cache MISS] ${fullTargetUrl}`);
 
-  // 3. 执行拉取逻辑
-  // a) 获取资源列表
-  let resources = await fetchSwaggerResources(fullTargetUrl, timeout);
+  // 3. 执行核心逻辑 (包装在 Promise 中以便存入 pendingMap)
+  const taskPromise = (async () => {
+    try {
+      // a) 获取资源列表
+      let resources = await fetchSwaggerResources(fullTargetUrl, timeout);
 
-  if (!Array.isArray(resources)) {
-    throw new Error("Invalid swagger-resources response. Expected an array.");
-  }
+      if (!Array.isArray(resources)) {
+        throw new Error(
+          "Invalid swagger-resources response. Expected an array."
+        );
+      }
 
-  // Debug Limit
-  if (debugLimit > 0) {
-    console.warn(
-      `[DEBUG] Limiting fetch to first ${debugLimit} groups for ${fullTargetUrl}`
-    );
-    resources = resources.slice(0, debugLimit);
-  }
+      // Debug Limit
+      if (debugLimit > 0) {
+        console.warn(
+          `[DEBUG] Limiting fetch to first ${debugLimit} groups for ${fullTargetUrl}`
+        );
+        resources = resources.slice(0, debugLimit);
+      }
 
-  // b) 并行获取 Group 文档
-  const fetchPromises = resources.map(async (resource) => {
-    const doc = await fetchGroupDocs(fullTargetUrl, resource.name, timeout);
-    return { groupName: resource.name, doc };
-  });
-  const docsResults = await Promise.all(fetchPromises);
+      // b) 并行获取 Group 文档
+      const fetchPromises = resources.map(async (resource) => {
+        const doc = await fetchGroupDocs(fullTargetUrl, resource.name, timeout);
+        return { groupName: resource.name, doc };
+      });
+      const docsResults = await Promise.all(fetchPromises);
 
-  // c) 过滤
-  const validDocs = docsResults.filter((item) => item.doc !== null);
+      // c) 过滤
+      const validDocs = docsResults.filter((item) => item.doc !== null);
 
-  // d) 合并
-  const merged = mergeSwaggerDocs(validDocs);
+      // d) 合并
+      const merged = mergeSwaggerDocs(validDocs);
 
-  // 4. 更新缓存
-  if (merged) {
-    cacheMap.set(cacheKey, {
-      data: merged,
-      timestamp: now,
-    });
+      // 4. 更新缓存
+      if (merged) {
+        cacheMap.set(cacheKey, {
+          data: merged,
+          timestamp: Date.now(),
+        });
 
-    // 简单的内存防爆：如果 Map 太大，清空一下（极端情况）
-    if (cacheMap.size > 100) {
-      cacheMap.clear();
+        // 简单的内存防爆
+        if (cacheMap.size > 100) {
+          cacheMap.clear();
+        }
+      }
+
+      return merged;
+    } finally {
+      // 无论成功失败，结束后都要移除锁
+      pendingRequests.delete(cacheKey);
     }
-  }
+  })();
 
-  return merged;
+  // 存入 Map
+  pendingRequests.set(cacheKey, taskPromise);
+
+  return taskPromise;
 }
