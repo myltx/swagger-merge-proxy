@@ -280,15 +280,62 @@
 
       function copyUrl() {
         const text = document.getElementById("resultUrl").innerText;
-        navigator.clipboard.writeText(text).then(() => {
-          const btn = document.getElementById("copyBtn");
-          const originalText = btn.innerText;
-          btn.innerText = "已复制!";
-          btn.classList.add("btn-primary");
-          setTimeout(() => {
-            btn.innerText = originalText;
-          }, 2000);
-        });
+
+        // 尝试使用 Clipboard API (HTTPS/Localhost)
+        if (navigator.clipboard) {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => {
+              showCopySuccess();
+            })
+            .catch((err) => {
+              console.error("Clipboard API failed, trying fallback", err);
+              fallbackCopyText(text);
+            });
+        } else {
+          // Fallback (HTTP)
+          fallbackCopyText(text);
+        }
+      }
+
+      function fallbackCopyText(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+
+        // 避免滚动到底部
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            showCopySuccess();
+          } else {
+            alert("复制失败，请手动复制");
+          }
+        } catch (err) {
+          console.error("Fallback: Oops, unable to copy", err);
+          alert("复制失败，请手动复制");
+        }
+
+        document.body.removeChild(textArea);
+      }
+
+      function showCopySuccess() {
+        const btn = document.getElementById("copyBtn");
+        const originalText = btn.innerText;
+        btn.innerText = "已复制!";
+        btn.classList.add("btn-primary");
+        // 如果原本不是 primary (虽然这里本来就是 primary，但为了逻辑完整)
+
+        setTimeout(() => {
+          btn.innerText = "复制链接"; // 恢复为硬编码的原始文本，或者用变量存
+        }, 2000);
       }
 
       function openUrl() {
