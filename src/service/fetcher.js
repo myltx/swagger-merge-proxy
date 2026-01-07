@@ -156,6 +156,24 @@ function mergeSwaggerDocs(docsList) {
         }
       });
     }
+
+    // 4. 合并 Global Responses (修复响应参数丢失问题)
+    if (doc.responses) {
+      if (!mergedDocs.responses) mergedDocs.responses = {};
+      Object.assign(mergedDocs.responses, doc.responses);
+    }
+
+    // 5. 合并 Global Parameters
+    if (doc.parameters) {
+      if (!mergedDocs.parameters) mergedDocs.parameters = {};
+      Object.assign(mergedDocs.parameters, doc.parameters);
+    }
+
+    // 6. 合并 Security Definitions
+    if (doc.securityDefinitions) {
+      if (!mergedDocs.securityDefinitions) mergedDocs.securityDefinitions = {};
+      Object.assign(mergedDocs.securityDefinitions, doc.securityDefinitions);
+    }
   });
 
   return mergedDocs;
