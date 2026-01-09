@@ -140,19 +140,13 @@ function mergeSwaggerDocs(docsList) {
               }
             }
 
-            // [UI优化] 过滤掉不需要的状态码 '0'，并确保 '200' 排在第一位
+            // [UI优化] 只保留 200, 40001, 40003 状态码，并确保 200 排在第一位
             if (operation.responses) {
               const orderedResponses = {};
-              const keys = Object.keys(operation.responses);
+              const targetKeys = ["200", "40001", "40003"];
 
-              // 1. 优先放入 200
-              if (keys.includes("200")) {
-                orderedResponses["200"] = operation.responses["200"];
-              }
-
-              // 2. 放入其他 key，但排除 "0"
-              keys.forEach((key) => {
-                if (key !== "200" && key !== "0") {
+              targetKeys.forEach((key) => {
+                if (operation.responses[key]) {
                   orderedResponses[key] = operation.responses[key];
                 }
               });
